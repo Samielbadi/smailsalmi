@@ -40,6 +40,7 @@ Puis ouvrir [http://localhost:3000](http://localhost:3000)
 
 Si aucune variable MongoDB n'est definie, l'application demarre en mode demo avec des donnees en memoire.
 Cela permet de tester rapidement sur Vercel sans MongoDB.
+Vous pouvez aussi forcer ce mode avec `DEMO_MODE=true`.
 
 Comptes de test en mode demo:
 

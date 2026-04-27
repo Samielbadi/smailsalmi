@@ -8,12 +8,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 let dbConnectionPromise;
-const isDemoMode = !(
-  process.env.MONGODB_URI ||
-  process.env.MONGO_URI ||
-  process.env.MONGODB_URL ||
-  process.env.DATABASE_URL
-);
+
+function isDemoModeEnabled() {
+  return process.env.DEMO_MODE === 'true' || !getMongoUri();
+}
 
 function getMongoUri() {
   return process.env.MONGODB_URI ||
@@ -31,7 +29,7 @@ function getConfigError() {
     return 'JWT_SECRET is missing.';
   }
 
-  if (!isDemoMode && !getMongoUri()) {
+  if (!isDemoModeEnabled() && !getMongoUri()) {
     return 'MONGODB_URI is missing. Set MONGODB_URI, MONGO_URI, MONGODB_URL, or DATABASE_URL.';
   }
 
@@ -39,7 +37,7 @@ function getConfigError() {
 }
 
 function ensureDatabaseConnection() {
-  if (isDemoMode) {
+  if (isDemoModeEnabled()) {
     return Promise.resolve(null);
   }
 
@@ -87,7 +85,7 @@ app.use('/api/stats', require('./routes/stats'));
 app.get('/health', (req, res) => {
   res.status(200).json({
     ok: true,
-    demoMode: isDemoMode,
+    demoMode: isDemoModeEnabled(),
     databaseReady: mongoose.connection.readyState === 1
   });
 });
