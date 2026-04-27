@@ -34,6 +34,39 @@ node server.js
 
 Puis ouvrir [http://localhost:3000](http://localhost:3000)
 
+## Deploiement
+
+### Option recommandee: Render + MongoDB Atlas
+
+Le projet inclut maintenant un fichier `render.yaml`, donc Render peut detecter automatiquement la configuration.
+
+1. Pousser le projet sur GitHub.
+2. Creer une base MongoDB Atlas et recuperer l'URI de connexion.
+3. Sur Render, creer un nouveau `Blueprint` ou `Web Service` depuis le depot GitHub.
+4. Renseigner les variables d'environnement:
+
+```env
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=une-cle-secrete-longue-et-forte
+```
+
+5. Lancer le deploy.
+6. Si besoin de donnees de demo, executer `npm run seed` en local en pointant vers la base MongoDB distante.
+
+Le service expose aussi `GET /health` pour la verification d'etat.
+
+### Autres hebergeurs compatibles
+
+- Railway
+- Fly.io
+- Toute VM / VPS avec Node.js et MongoDB Atlas
+
+Le point d'entree est `server.js` et la commande de demarrage est:
+
+```bash
+npm start
+```
+
 ## Comptes de test
 
 - Directeur: `directeur@test.com` / `dir123`

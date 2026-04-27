@@ -7,10 +7,21 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+if (!MONGODB_URI) {
+  console.error('MONGODB_URI is missing.');
+  process.exit(1);
+}
+
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET is missing.');
+  process.exit(1);
+}
 
 // Route publique (login)
 app.use('/api/auth', require('./routes/auth'));
@@ -18,6 +29,10 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/modules', require('./routes/modules'));
 app.use('/api/seances', require('./routes/seances'));
 app.use('/api/stats', require('./routes/stats'));
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ ok: true });
+});
 
 // Route racine
 app.get('/', (req, res) => {
