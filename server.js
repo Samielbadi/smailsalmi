@@ -6,27 +6,43 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
 let dbConnectionPromise;
+const isDemoMode = !(
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI ||
+  process.env.MONGODB_URL ||
+  process.env.DATABASE_URL
+);
+
+function getMongoUri() {
+  return process.env.MONGODB_URI ||
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URL ||
+    process.env.DATABASE_URL;
+}
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 function getConfigError() {
-  if (!MONGODB_URI) {
-    return 'MONGODB_URI is missing.';
-  }
-
   if (!JWT_SECRET) {
     return 'JWT_SECRET is missing.';
+  }
+
+  if (!isDemoMode && !getMongoUri()) {
+    return 'MONGODB_URI is missing. Set MONGODB_URI, MONGO_URI, MONGODB_URL, or DATABASE_URL.';
   }
 
   return null;
 }
 
 function ensureDatabaseConnection() {
+  if (isDemoMode) {
+    return Promise.resolve(null);
+  }
+
   const configError = getConfigError();
 
   if (configError) {
@@ -38,7 +54,7 @@ function ensureDatabaseConnection() {
   }
 
   if (!dbConnectionPromise) {
-    dbConnectionPromise = mongoose.connect(MONGODB_URI)
+    dbConnectionPromise = mongoose.connect(getMongoUri())
       .then(() => {
         console.log('MongoDB connecte.');
         return mongoose.connection;
@@ -71,6 +87,7 @@ app.use('/api/stats', require('./routes/stats'));
 app.get('/health', (req, res) => {
   res.status(200).json({
     ok: true,
+    demoMode: isDemoMode,
     databaseReady: mongoose.connection.readyState === 1
   });
 });
@@ -84,7 +101,7 @@ app.get('/', (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err);
   const message = err && err.message ? err.message : 'Erreur serveur interne.';
-  const isConfigError = message === 'MONGODB_URI is missing.' || message === 'JWT_SECRET is missing.';
+  const isConfigError = message.startsWith('MONGODB_URI is missing.') || message === 'JWT_SECRET is missing.';
   const isMongoError = err && (
     err.name === 'MongooseServerSelectionError' ||
     err.name === 'MongoServerSelectionError' ||

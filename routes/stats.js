@@ -2,6 +2,7 @@ const express = require('express');
 const Module = require('../models/Module');
 const Seance = require('../models/Seance');
 const { verifyToken, requireRole } = require('../middleware/auth');
+const demoData = require('../lib/demoData');
 
 const router = express.Router();
 
@@ -10,6 +11,10 @@ router.use(verifyToken, requireRole('directeur'));
 // GET /api/stats/modules -> heures realisees vs prevues par module
 router.get('/modules', async (req, res) => {
   try {
+    if (demoData.isDemoMode()) {
+      return res.json(await demoData.getModuleStats());
+    }
+
     const modules = await Module.find({ actif: true }).sort({ ordre: 1, nom: 1 }).lean();
     const agg = await Seance.aggregate([
       {
@@ -37,6 +42,10 @@ router.get('/modules', async (req, res) => {
 // GET /api/stats/formateurs -> heures totales par formateur
 router.get('/formateurs', async (req, res) => {
   try {
+    if (demoData.isDemoMode()) {
+      return res.json(await demoData.getFormateurStats());
+    }
+
     const stats = await Seance.aggregate([
       {
         $group: {

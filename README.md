@@ -22,7 +22,7 @@ JWT_SECRET=une-cle-secrete-forte
 PORT=3000
 ```
 
-> Le code accepte aussi `MONGO_URI` pour compatibilite.
+> Le code accepte aussi `MONGO_URI`, `MONGODB_URL` et `DATABASE_URL` pour compatibilite.
 
 ## Installation et lancement
 
@@ -35,6 +35,19 @@ node server.js
 Puis ouvrir [http://localhost:3000](http://localhost:3000)
 
 ## Deploiement
+
+### Mode test sans MongoDB
+
+Si aucune variable MongoDB n'est definie, l'application demarre en mode demo avec des donnees en memoire.
+Cela permet de tester rapidement sur Vercel sans MongoDB.
+
+Comptes de test en mode demo:
+
+- `directeur@test.com` / `dir123`
+- `tarik@test.com` / `1234`
+- `soumaya@test.com` / `1234`
+
+Attention: les donnees creees en mode demo ne sont pas persistantes et peuvent etre reinitialisees a tout moment.
 
 ### Option recommandee: Render + MongoDB Atlas
 
@@ -66,6 +79,17 @@ Le point d'entree est `server.js` et la commande de demarrage est:
 ```bash
 npm start
 ```
+
+### Vercel
+
+Pour Vercel, definir au minimum:
+
+```env
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=une-cle-secrete-longue-et-forte
+```
+
+Si votre projet Vercel utilise deja un autre nom de variable, l'application accepte aussi `MONGO_URI`, `MONGODB_URL` et `DATABASE_URL`.
 
 ## Comptes de test
 

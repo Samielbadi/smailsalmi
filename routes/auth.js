@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const demoData = require('../lib/demoData');
 
 const router = express.Router();
 
@@ -14,7 +15,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email et mot de passe sont obligatoires.' });
     }
 
-    const user = await User.findOne({ email: String(email).toLowerCase().trim(), actif: true });
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = demoData.isDemoMode()
+      ? await demoData.findActiveUserByEmail(normalizedEmail)
+      : await User.findOne({ email: normalizedEmail, actif: true });
     if (!user) {
       return res.status(401).json({ message: 'Identifiants invalides.' });
     }

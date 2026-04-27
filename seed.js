@@ -5,9 +5,21 @@ const User = require('./models/User');
 const Module = require('./models/Module');
 const Seance = require('./models/Seance');
 
+function getMongoUri() {
+  return process.env.MONGODB_URI ||
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URL ||
+    process.env.DATABASE_URL;
+}
+
 async function runSeed() {
   try {
-    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    const mongoUri = getMongoUri();
+
+    if (!mongoUri) {
+      throw new Error('MongoDB URI missing. Set MONGODB_URI, MONGO_URI, MONGODB_URL, or DATABASE_URL.');
+    }
+
     await mongoose.connect(mongoUri);
     console.log('MongoDB connecte. Debut du seed...');
 
