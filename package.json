@@ -1,0 +1,26 @@
+{
+  "name": "suivi-pedagogique",
+  "version": "1.0.0",
+  "description": "Application de suivi pedagogique (formateur/directeur)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "mongoose",
+    "suivi-pedagogique"
+  ],
+  "author": "Senior Full-Stack",
+  "license": "MIT",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.19.2"
+  }
+}

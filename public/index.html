@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suivi pedagogique</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+  <style>
+    :root { --blue: #2563eb; --text: #1f2937; --bg: #ffffff; --gray: #e5e7eb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .hidden { display: none; }
+    .card { border: 1px solid var(--gray); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    h1, h2 { margin-top: 0; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 12px; }
+    textarea { min-height: 90px; resize: vertical; }
+    button { background: var(--blue); color: white; border: none; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
+    button.secondary { background: #6b7280; }
+    button.success { background: #16a34a; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .message { margin-top: 8px; font-weight: 600; }
+    .ok { color: #15803d; }
+    .error { color: #b91c1c; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border: 1px solid var(--gray); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; }
+    .charts { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 980px) { .charts { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="view-login" class="card">
+      <h1>Connexion</h1>
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="email@test.com">
+      <label for="password">Mot de passe</label>
+      <input id="password" type="password" placeholder="********">
+      <button id="btn-login">Se connecter</button>
+      <p id="login-message" class="message"></p>
+    </div>
+
+    <div id="view-formateur" class="hidden">
+      <div class="topbar">
+        <h2 id="hello-formateur"></h2>
+        <button id="btn-logout-formateur" class="secondary">Deconnexion</button>
+      </div>
+      <div class="card">
+        <h2>Saisie de seance</h2>
+        <label for="module">Module</label>
+        <select id="module"></select>
+        <div class="grid-2">
+          <div>
+            <label for="date">Date de la seance</label>
+            <input id="date" type="date">
+          </div>
+          <div>
+            <label for="heures">Heures (calcule automatiquement)</label>
+            <input id="heures" type="number" step="0.01" readonly>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <label for="heureDebut">Heure de debut</label>
+            <input id="heureDebut" type="time">
+          </div>
+          <div>
+            <label for="heureFin">Heure de fin</label>
+            <input id="heureFin" type="time">
+          </div>
+        </div>
+        <label for="objectif">Objectif pedagogique</label>
+        <textarea id="objectif"></textarea>
+        <label for="deroulement">Deroulement</label>
+        <textarea id="deroulement"></textarea>
+        <label for="observations">Observations</label>
+        <textarea id="observations"></textarea>
+        <label for="suite">Suite a donner</label>
+        <textarea id="suite"></textarea>
+        <button id="btn-save-seance">Enregistrer la seance</button>
+        <p id="seance-message" class="message"></p>
+      </div>
+    </div>
+
+    <div id="view-directeur" class="hidden">
+      <div class="topbar">
+        <h2 id="hello-directeur"></h2>
+        <button id="btn-logout-directeur" class="secondary">Deconnexion</button>
+      </div>
+      <div class="card">
+        <h2>Toutes les seances</h2>
+        <div style="overflow:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Formateur</th>
+                <th>Module</th>
+                <th>Date</th>
+                <th>Heure debut</th>
+                <th>Heure fin</th>
+                <th>Heures</th>
+                <th>Objectif</th>
+                <th>Deroulement</th>
+                <th>Observations</th>
+                <th>Suite</th>
+                <th>Valide</th>
+              </tr>
+            </thead>
+            <tbody id="seances-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Statistiques</h2>
+        <div class="charts">
+          <canvas id="chartModules"></canvas>
+          <canvas id="chartFormateurs"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api';
+    const state = { token: localStorage.getItem('token') || '', user: JSON.parse(localStorage.getItem('user') || 'null'), modules: [] };
+    let chartModules = null;
+    let chartFormateurs = null;
+
+    function showView(viewId) {
+      document.getElementById('view-login').classList.add('hidden');
+      document.getElementById('view-formateur').classList.add('hidden');
+      document.getElementById('view-directeur').classList.add('hidden');
+      document.getElementById(viewId).classList.remove('hidden');
+    }
+
+    function authHeaders() {
+      return { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` };
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      state.token = '';
+      state.user = null;
+      showView('view-login');
+    }
+
+    function setMessage(id, text, isOk) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = `message ${isOk ? 'ok' : 'error'}`;
+    }
+
+    function computeHeures() {
+      const debut = document.getElementById('heureDebut').value;
+      const fin = document.getElementById('heureFin').value;
+      if (!debut || !fin) { document.getElementById('heures').value = ''; return; }
+      const [hd, md] = debut.split(':').map(Number);
+      const [hf, mf] = fin.split(':').map(Number);
+      const totalDebut = hd * 60 + md;
+      const totalFin = hf * 60 + mf;
+      const diff = totalFin - totalDebut;
+      document.getElementById('heures').value = diff > 0 ? (diff / 60).toFixed(2) : '';
+    }
+
+    async function login() {
+      try {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const res = await fetch(`${API}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessage('login-message', data.message || 'Echec de connexion.', false);
+          return;
+        }
+        state.token = data.token;
+        state.user = data.user;
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        setMessage('login-message', '', true);
+        await initByRole();
+      } catch (error) {
+        setMessage('login-message', 'Erreur reseau.', false);
+      }
+    }
+
+    async function loadMyModules() {
+      const res = await fetch(`${API}/modules/miens`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Erreur modules');
+      state.modules = data;
+      const sel = document.getElementById('module');
+      sel.innerHTML = data.map((m) => `<option value="${m._id}">${m.nom}</option>`).join('');
+    }
+
+    async function saveSeance() {
+      try {
+        const moduleId = document.getElementById('module').value;
+        const moduleSelected = state.modules.find((m) => m._id === moduleId);
+        const heures = Number(document.getElementById('heures').value);
+        const payload = {
+          moduleId,
+          moduleNom: moduleSelected ? moduleSelected.nom : '',
+          formateurId: state.user.id,
+          formateurNom: state.user.nom,
+          date: document.getElementById('date').value,
+          heureDebut: document.getElementById('heureDebut').value,
+          heureFin: document.getElementById('heureFin').value,
+          objectif: document.getElementById('objectif').value.trim(),
+          deroulement: document.getElementById('deroulement').value.trim(),
+          observations: document.getElementById('observations').value.trim(),
+          suite: document.getElementById('suite').value.trim(),
+          heures
+        };
+
+        if (!payload.date || !payload.heureDebut || !payload.heureFin || !payload.objectif || !payload.deroulement || !payload.moduleId || !heures) {
+          setMessage('seance-message', 'Veuillez remplir tous les champs obligatoires.', false);
+          return;
+        }
+
+        const res = await fetch(`${API}/seances`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessage('seance-message', data.message || 'Erreur de creation.', false);
+          return;
+        }
+
+        document.getElementById('date').value = '';
+        document.getElementById('heureDebut').value = '';
+        document.getElementById('heureFin').value = '';
+        document.getElementById('heures').value = '';
+        document.getElementById('objectif').value = '';
+        document.getElementById('deroulement').value = '';
+        document.getElementById('observations').value = '';
+        document.getElementById('suite').value = '';
+        setMessage('seance-message', 'Seance enregistree avec succes.', true);
+      } catch (error) {
+        setMessage('seance-message', 'Erreur reseau.', false);
+      }
+    }
+
+    async function loadSeances() {
+      const res = await fetch(`${API}/seances`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Erreur seances');
+      const body = document.getElementById('seances-body');
+      body.innerHTML = data.map((s) => `
+        <tr>
+          <td>${s.formateurNom}</td>
+          <td>${s.moduleNom}</td>
+          <td>${s.date}</td>
+          <td>${s.heureDebut}</td>
+          <td>${s.heureFin}</td>
+          <td>${s.heures}</td>
+          <td>${s.objectif}</td>
+          <td>${s.deroulement}</td>
+          <td>${s.observations || ''}</td>
+          <td>${s.suite || ''}</td>
+          <td>
+            ${s.valideParDirecteur ? '<span style="color:#16a34a;font-weight:700;">✓</span>' : `<button class="success" data-valider="${s._id}">Valider</button>`}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function validerSeance(id) {
+      const res = await fetch(`${API}/seances/${id}/valider`, { method: 'PATCH', headers: authHeaders() });
+      if (res.ok) {
+        await loadSeances();
+        await loadStats();
+      }
+    }
+
+    async function loadStats() {
+      const [resModules, resFormateurs] = await Promise.all([
+        fetch(`${API}/stats/modules`, { headers: authHeaders() }),
+        fetch(`${API}/stats/formateurs`, { headers: authHeaders() })
+      ]);
+      const modules = await resModules.json();
+      const formateurs = await resFormateurs.json();
+      if (!resModules.ok || !resFormateurs.ok) throw new Error('Erreur stats');
+
+      const labelsModules = modules.map((m) => m.moduleNom);
+      const realise = modules.map((m) => m.realise);
+      const prevu = modules.map((m) => m.prevu);
+      if (chartModules) chartModules.destroy();
+      chartModules = new Chart(document.getElementById('chartModules'), {
+        type: 'bar',
+        data: { labels: labelsModules, datasets: [
+          { label: 'Realise', data: realise, backgroundColor: '#2563eb' },
+          { label: 'Prevu', data: prevu, backgroundColor: '#9ca3af' }
+        ] },
+        options: { indexAxis: 'y', plugins: { title: { display: true, text: 'Avancement des modules' } } }
+      });
+
+      const labelsFormateurs = formateurs.map((f) => f.formateurNom);
+      const heuresFormateurs = formateurs.map((f) => f.totalHeures);
+      if (chartFormateurs) chartFormateurs.destroy();
+      chartFormateurs = new Chart(document.getElementById('chartFormateurs'), {
+        type: 'bar',
+        data: { labels: labelsFormateurs, datasets: [{ label: 'Heures realisees', data: heuresFormateurs, backgroundColor: '#2563eb' }] },
+        options: { plugins: { title: { display: true, text: 'Avancement par formateur' } } }
+      });
+    }
+
+    async function initByRole() {
+      if (!state.token || !state.user) { showView('view-login'); return; }
+      if (state.user.role === 'formateur') {
+        showView('view-formateur');
+        document.getElementById('hello-formateur').textContent = `Bonjour ${state.user.nom}`;
+        await loadMyModules();
+      } else if (state.user.role === 'directeur') {
+        showView('view-directeur');
+        document.getElementById('hello-directeur').textContent = `Bonjour ${state.user.nom}`;
+        await loadSeances();
+        await loadStats();
+      } else {
+        logout();
+      }
+    }
+
+    document.getElementById('btn-login').addEventListener('click', login);
+    document.getElementById('btn-save-seance').addEventListener('click', saveSeance);
+    document.getElementById('btn-logout-formateur').addEventListener('click', logout);
+    document.getElementById('btn-logout-directeur').addEventListener('click', logout);
+    document.getElementById('heureDebut').addEventListener('change', computeHeures);
+    document.getElementById('heureFin').addEventListener('change', computeHeures);
+    document.getElementById('seances-body').addEventListener('click', async (event) => {
+      const id = event.target.getAttribute('data-valider');
+      if (id) await validerSeance(id);
+    });
+
+    initByRole();
+  </script>
+</body>
+</html>
