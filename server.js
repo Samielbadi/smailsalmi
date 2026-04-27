@@ -69,7 +69,10 @@ app.use('/api/seances', require('./routes/seances'));
 app.use('/api/stats', require('./routes/stats'));
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ ok: true });
+  res.status(200).json({
+    ok: true,
+    databaseReady: mongoose.connection.readyState === 1
+  });
 });
 
 // Route racine
@@ -80,7 +83,23 @@ app.get('/', (req, res) => {
 // Gestion simple des erreurs
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ message: 'Erreur serveur interne.' });
+  const message = err && err.message ? err.message : 'Erreur serveur interne.';
+  const isConfigError = message === 'MONGODB_URI is missing.' || message === 'JWT_SECRET is missing.';
+  const isMongoError = err && (
+    err.name === 'MongooseServerSelectionError' ||
+    err.name === 'MongoServerSelectionError' ||
+    /mongo/i.test(message)
+  );
+
+  if (isConfigError) {
+    return res.status(500).json({ message });
+  }
+
+  if (isMongoError) {
+    return res.status(500).json({ message: 'Connexion a la base de donnees impossible.' });
+  }
+
+  return res.status(500).json({ message: 'Erreur serveur interne.' });
 });
 
 module.exports = app;
