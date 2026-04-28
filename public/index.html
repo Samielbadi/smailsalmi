@@ -20,34 +20,48 @@
     button.secondary { background: #6b7280; }
     button.success { background: #16a34a; }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .message { margin-top: 8px; font-weight: 600; }
     .ok { color: #15803d; }
     .error { color: #b91c1c; }
+    .profiles { display: grid; gap: 16px; }
+    .profile-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th, td { border: 1px solid var(--gray); padding: 8px; text-align: left; vertical-align: top; }
     th { background: #f9fafb; }
     .charts { display: grid; gap: 20px; grid-template-columns: 1fr; }
-    @media (min-width: 980px) { .charts { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 980px) {
+      .charts { grid-template-columns: 1fr 1fr; }
+      .profiles { grid-template-columns: 1fr 1fr; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <div id="view-login" class="card">
-      <h1>Connexion</h1>
-      <label for="email">Email</label>
-      <input id="email" type="email" placeholder="email@test.com">
-      <label for="password">Mot de passe</label>
-      <input id="password" type="password" placeholder="********">
-      <button id="btn-login">Se connecter</button>
-      <p id="login-message" class="message"></p>
+    <div id="view-access" class="card">
+      <h1>Acces a l'application</h1>
+      <p>Choisissez un profil pour entrer directement dans l'application.</p>
+      <div class="profiles">
+        <div class="card">
+          <h2>Directeur</h2>
+          <p>Consulter toutes les seances, valider et suivre les statistiques.</p>
+          <button id="btn-enter-directeur">Entrer comme directeur</button>
+        </div>
+        <div class="card">
+          <h2>Formateur</h2>
+          <label for="formateur-select">Profil formateur</label>
+          <select id="formateur-select"></select>
+          <button id="btn-enter-formateur">Entrer comme formateur</button>
+        </div>
+      </div>
+      <p id="access-message" class="message"></p>
     </div>
 
     <div id="view-formateur" class="hidden">
       <div class="topbar">
         <h2 id="hello-formateur"></h2>
-        <button id="btn-logout-formateur" class="secondary">Deconnexion</button>
+        <button id="btn-switch-formateur" class="secondary">Changer de profil</button>
       </div>
       <div class="card">
         <h2>Saisie de seance</h2>
@@ -89,7 +103,7 @@
     <div id="view-directeur" class="hidden">
       <div class="topbar">
         <h2 id="hello-directeur"></h2>
-        <button id="btn-logout-directeur" class="secondary">Deconnexion</button>
+        <button id="btn-switch-directeur" class="secondary">Changer de profil</button>
       </div>
       <div class="card">
         <h2>Toutes les seances</h2>
@@ -126,27 +140,34 @@
 
   <script>
     const API = '/api';
-    const state = { token: localStorage.getItem('token') || '', user: JSON.parse(localStorage.getItem('user') || 'null'), modules: [] };
+    const state = {
+      user: JSON.parse(localStorage.getItem('user') || 'null'),
+      profiles: [],
+      modules: []
+    };
     let chartModules = null;
     let chartFormateurs = null;
 
     function showView(viewId) {
-      document.getElementById('view-login').classList.add('hidden');
+      document.getElementById('view-access').classList.add('hidden');
       document.getElementById('view-formateur').classList.add('hidden');
       document.getElementById('view-directeur').classList.add('hidden');
       document.getElementById(viewId).classList.remove('hidden');
     }
 
-    function authHeaders() {
-      return { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` };
+    function apiHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (state.user && state.user.id) {
+        headers['x-user-id'] = state.user.id;
+      }
+      return headers;
     }
 
-    function logout() {
-      localStorage.removeItem('token');
+    function clearSession() {
       localStorage.removeItem('user');
-      state.token = '';
       state.user = null;
-      showView('view-login');
+      state.modules = [];
+      showView('view-access');
     }
 
     function setMessage(id, text, isOk) {
@@ -167,33 +188,53 @@
       document.getElementById('heures').value = diff > 0 ? (diff / 60).toFixed(2) : '';
     }
 
-    async function login() {
-      try {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
-        const res = await fetch(`${API}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setMessage('login-message', data.message || 'Echec de connexion.', false);
-          return;
-        }
-        state.token = data.token;
-        state.user = data.user;
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        setMessage('login-message', '', true);
-        await initByRole();
-      } catch (error) {
-        setMessage('login-message', 'Erreur reseau.', false);
+    async function loadProfiles() {
+      const res = await fetch(`${API}/profiles`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Erreur profils');
+      state.profiles = data;
+
+      const formateurs = data.filter((user) => user.role === 'formateur');
+      const select = document.getElementById('formateur-select');
+      select.innerHTML = formateurs.map((user) => `<option value="${user.id}">${user.nom}</option>`).join('');
+    }
+
+    function saveSelectedUser(user) {
+      state.user = user;
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    function getDirecteurProfile() {
+      return state.profiles.find((user) => user.role === 'directeur') || null;
+    }
+
+    async function enterAsDirecteur() {
+      const directeur = getDirecteurProfile();
+      if (!directeur) {
+        setMessage('access-message', 'Aucun profil directeur disponible.', false);
+        return;
       }
+
+      saveSelectedUser(directeur);
+      setMessage('access-message', '', true);
+      await initByRole();
+    }
+
+    async function enterAsFormateur() {
+      const formateurId = document.getElementById('formateur-select').value;
+      const formateur = state.profiles.find((user) => user.id === formateurId && user.role === 'formateur');
+      if (!formateur) {
+        setMessage('access-message', 'Selectionnez un profil formateur valide.', false);
+        return;
+      }
+
+      saveSelectedUser(formateur);
+      setMessage('access-message', '', true);
+      await initByRole();
     }
 
     async function loadMyModules() {
-      const res = await fetch(`${API}/modules/miens`, { headers: authHeaders() });
+      const res = await fetch(`${API}/modules/miens`, { headers: apiHeaders() });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Erreur modules');
       state.modules = data;
@@ -208,9 +249,6 @@
         const heures = Number(document.getElementById('heures').value);
         const payload = {
           moduleId,
-          moduleNom: moduleSelected ? moduleSelected.nom : '',
-          formateurId: state.user.id,
-          formateurNom: state.user.nom,
           date: document.getElementById('date').value,
           heureDebut: document.getElementById('heureDebut').value,
           heureFin: document.getElementById('heureFin').value,
@@ -226,9 +264,14 @@
           return;
         }
 
+        if (!moduleSelected) {
+          setMessage('seance-message', 'Module introuvable pour ce formateur.', false);
+          return;
+        }
+
         const res = await fetch(`${API}/seances`, {
           method: 'POST',
-          headers: authHeaders(),
+          headers: apiHeaders(),
           body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -252,7 +295,7 @@
     }
 
     async function loadSeances() {
-      const res = await fetch(`${API}/seances`, { headers: authHeaders() });
+      const res = await fetch(`${API}/seances`, { headers: apiHeaders() });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Erreur seances');
       const body = document.getElementById('seances-body');
@@ -269,14 +312,14 @@
           <td>${s.observations || ''}</td>
           <td>${s.suite || ''}</td>
           <td>
-            ${s.valideParDirecteur ? '<span style="color:#16a34a;font-weight:700;">✓</span>' : `<button class="success" data-valider="${s._id}">Valider</button>`}
+            ${s.valideParDirecteur ? '<span style="color:#16a34a;font-weight:700;">OK</span>' : `<button class="success" data-valider="${s._id}">Valider</button>`}
           </td>
         </tr>
       `).join('');
     }
 
     async function validerSeance(id) {
-      const res = await fetch(`${API}/seances/${id}/valider`, { method: 'PATCH', headers: authHeaders() });
+      const res = await fetch(`${API}/seances/${id}/valider`, { method: 'PATCH', headers: apiHeaders() });
       if (res.ok) {
         await loadSeances();
         await loadStats();
@@ -285,8 +328,8 @@
 
     async function loadStats() {
       const [resModules, resFormateurs] = await Promise.all([
-        fetch(`${API}/stats/modules`, { headers: authHeaders() }),
-        fetch(`${API}/stats/formateurs`, { headers: authHeaders() })
+        fetch(`${API}/stats/modules`, { headers: apiHeaders() }),
+        fetch(`${API}/stats/formateurs`, { headers: apiHeaders() })
       ]);
       const modules = await resModules.json();
       const formateurs = await resFormateurs.json();
@@ -316,25 +359,54 @@
     }
 
     async function initByRole() {
-      if (!state.token || !state.user) { showView('view-login'); return; }
+      if (!state.user) {
+        showView('view-access');
+        return;
+      }
+
       if (state.user.role === 'formateur') {
         showView('view-formateur');
         document.getElementById('hello-formateur').textContent = `Bonjour ${state.user.nom}`;
         await loadMyModules();
-      } else if (state.user.role === 'directeur') {
+        return;
+      }
+
+      if (state.user.role === 'directeur') {
         showView('view-directeur');
         document.getElementById('hello-directeur').textContent = `Bonjour ${state.user.nom}`;
         await loadSeances();
         await loadStats();
-      } else {
-        logout();
+        return;
+      }
+
+      clearSession();
+    }
+
+    async function boot() {
+      try {
+        await loadProfiles();
+
+        if (state.user) {
+          const profile = state.profiles.find((user) => user.id === state.user.id);
+          if (!profile) {
+            clearSession();
+            return;
+          }
+          saveSelectedUser(profile);
+        }
+
+        await initByRole();
+      } catch (error) {
+        setMessage('access-message', 'Impossible de charger les profils.', false);
+        showView('view-access');
       }
     }
 
-    document.getElementById('btn-login').addEventListener('click', login);
+    document.getElementById('btn-enter-directeur').addEventListener('click', enterAsDirecteur);
+    document.getElementById('btn-enter-formateur').addEventListener('click', enterAsFormateur);
     document.getElementById('btn-save-seance').addEventListener('click', saveSeance);
-    document.getElementById('btn-logout-formateur').addEventListener('click', logout);
-    document.getElementById('btn-logout-directeur').addEventListener('click', logout);
+    document.getElementById('btn-switch-formateur').addEventListener('click', clearSession);
+    document.getElementById('btn-switch-directeur').addEventListener('click', clearSession);
     document.getElementById('heureDebut').addEventListener('change', computeHeures);
     document.getElementById('heureFin').addEventListener('change', computeHeures);
     document.getElementById('seances-body').addEventListener('click', async (event) => {
@@ -342,7 +414,7 @@
       if (id) await validerSeance(id);
     });
 
-    initByRole();
+    boot();
   </script>
 </body>
 </html>

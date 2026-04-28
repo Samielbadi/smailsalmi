@@ -4,6 +4,8 @@ Application web de suivi pedagogique pour un centre de formation, avec deux role
 - `formateur`: saisie des seances
 - `directeur`: consultation globale + validation + statistiques
 
+L'application ne demande plus de connexion: l'utilisateur choisit simplement un profil au demarrage.
+
 ## Stack
 
 - Node.js
@@ -18,7 +20,6 @@ Creer un fichier `.env` a la racine:
 
 ```env
 MONGODB_URI=mongodb://127.0.0.1:27017/suivi_pedagogique
-JWT_SECRET=une-cle-secrete-forte
 PORT=3000
 ```
 
@@ -42,11 +43,11 @@ Si aucune variable MongoDB n'est definie, l'application demarre en mode demo ave
 Cela permet de tester rapidement sur Vercel sans MongoDB.
 Vous pouvez aussi forcer ce mode avec `DEMO_MODE=true`.
 
-Comptes de test en mode demo:
+Profils disponibles en mode demo:
 
-- `directeur@test.com` / `dir123`
-- `tarik@test.com` / `1234`
-- `soumaya@test.com` / `1234`
+- `Directeur Principal`
+- `El Khomsi Tarik`
+- `Alaoui Ismaili Soumaya`
 
 Attention: les donnees creees en mode demo ne sont pas persistantes et peuvent etre reinitialisees a tout moment.
 
@@ -61,7 +62,6 @@ Le projet inclut maintenant un fichier `render.yaml`, donc Render peut detecter 
 
 ```env
 MONGODB_URI=mongodb+srv://...
-JWT_SECRET=une-cle-secrete-longue-et-forte
 ```
 
 5. Lancer le deploy.
@@ -87,22 +87,21 @@ Pour Vercel, definir au minimum:
 
 ```env
 MONGODB_URI=mongodb+srv://...
-JWT_SECRET=une-cle-secrete-longue-et-forte
 ```
 
 Si votre projet Vercel utilise deja un autre nom de variable, l'application accepte aussi `MONGO_URI`, `MONGODB_URL` et `DATABASE_URL`.
 
-## Comptes de test
+## Profils de test
 
-- Directeur: `directeur@test.com` / `dir123`
-- Formateur: `tarik@test.com` / `1234`
-- Formateur: `soumaya@test.com` / `1234`
+- Directeur: `Directeur Principal`
+- Formateur: `El Khomsi Tarik`
+- Formateur: `Alaoui Ismaili Soumaya`
 
 ## API exposee
 
-- `POST /api/auth/login`
 - `GET /api/modules`
 - `GET /api/modules/miens`
+- `GET /api/profiles`
 - `POST /api/seances`
 - `GET /api/seances`
 - `PATCH /api/seances/:id/valider`
@@ -112,8 +111,8 @@ Si votre projet Vercel utilise deja un autre nom de variable, l'application acce
 ## Structure des vues frontend
 
 Un seul fichier `public/index.html` avec 3 vues:
-- vue login
+- vue selection de profil
 - vue saisie formateur
 - vue dashboard directeur
 
-L'affichage est controle en JS via `display` (classe `hidden`) selon le role retourne au login.
+L'affichage est controle en JS via `display` (classe `hidden`) selon le profil choisi.

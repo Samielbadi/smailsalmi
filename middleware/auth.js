@@ -1,24 +1,32 @@
-const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const demoData = require('../lib/demoData');
 
-// Verifie la presence et la validite du token JWT
-function verifyToken(req, res, next) {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-  if (!token) {
-    return res.status(401).json({ message: 'Token manquant.' });
-  }
-
+// Recupere l'utilisateur actif depuis un simple identifiant transmis par le frontend.
+async function verifyToken(req, res, next) {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = String(req.headers['x-user-id'] || '').trim();
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Utilisateur manquant.' });
+    }
+
+    const user = demoData.isDemoMode()
+      ? await demoData.findActiveUserById(userId)
+      : await User.findOne({ _id: userId, actif: true }).select('_id nom role');
+
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur invalide.' });
+    }
+
     req.user = {
-      id: payload.id,
-      nom: payload.nom,
-      role: payload.role
+      id: user._id.toString(),
+      nom: user.nom,
+      role: user.role
     };
+
     return next();
   } catch (error) {
-    return res.status(401).json({ message: 'Token invalide ou expire.' });
+    return res.status(401).json({ message: 'Utilisateur invalide.' });
   }
 }
 

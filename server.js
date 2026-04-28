@@ -6,7 +6,6 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET;
 let dbConnectionPromise;
 
 function isDemoModeEnabled() {
@@ -25,10 +24,6 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 function getConfigError() {
-  if (!JWT_SECRET) {
-    return 'JWT_SECRET is missing.';
-  }
-
   if (!isDemoModeEnabled() && !getMongoUri()) {
     return 'MONGODB_URI is missing. Set MONGODB_URI, MONGO_URI, MONGODB_URL, or DATABASE_URL.';
   }
@@ -75,9 +70,7 @@ app.use('/api', async (req, res, next) => {
   }
 });
 
-// Route publique (login)
-app.use('/api/auth', require('./routes/auth'));
-// Routes protegees JWT
+app.use('/api/profiles', require('./routes/profiles'));
 app.use('/api/modules', require('./routes/modules'));
 app.use('/api/seances', require('./routes/seances'));
 app.use('/api/stats', require('./routes/stats'));
@@ -99,7 +92,7 @@ app.get('/', (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err);
   const message = err && err.message ? err.message : 'Erreur serveur interne.';
-  const isConfigError = message.startsWith('MONGODB_URI is missing.') || message === 'JWT_SECRET is missing.';
+  const isConfigError = message.startsWith('MONGODB_URI is missing.');
   const isMongoError = err && (
     err.name === 'MongooseServerSelectionError' ||
     err.name === 'MongoServerSelectionError' ||
